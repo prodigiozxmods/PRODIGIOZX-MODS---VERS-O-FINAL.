@@ -1,4 +1,4 @@
--- [[ PRODIGIOZX MODS - VERSÃO PROXIMIDADE ]] --
+-- [[ PRODIGIOZX MODS - VERSÃO AVISO CORRIGIDO ]] --
 local player = game:GetService("Players").LocalPlayer
 local camera = workspace.CurrentCamera
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
@@ -10,19 +10,34 @@ local Window = Library.CreateLib("PRODIGIOZX MODS", {
     TextColor = Color3.fromRGB(255, 255, 255)
 })
 
--- [[ CONFIGURAÇÕES ESP ]] --
+-- [[ CONFIGURAÇÕES ]] --
 local ESP_Settings = {
-    Enabled = false,
-    Boxes = false,
-    Lines = false,
-    Names = false,
-    Distance = false,
-    Color = Color3.fromRGB(255, 140, 0),
-    Thickness = 1,
-    MaxPlayers = 1 -- Padrão agora é 1 (o mais próximo)
+    Enabled = false, Boxes = false, Lines = false, Names = false, Distance = false,
+    Color = Color3.fromRGB(255, 140, 0), Thickness = 1, MaxPlayers = 1
 }
 
--- [[ LÓGICA DE CENTRALIZAÇÃO E AVISO INICIAL ]] --
+local Farm_Settings = {
+    AutoFarm = false,
+    ColetaPos = Vector3.new(80, 3, -430),
+    EntregaPos = Vector3.new(441, 3, -225),
+    WaitTime = 30 
+}
+
+-- [[ DISPLAY DE TEMPO NA TELA ]] --
+local farmGui = Instance.new("ScreenGui", player.PlayerGui)
+local timerLabel = Instance.new("TextLabel", farmGui)
+timerLabel.Size = UDim2.new(0, 220, 0, 50)
+timerLabel.Position = UDim2.new(0.5, -110, 0.1, 0)
+timerLabel.BackgroundColor3 = Color3.new(0,0,0)
+timerLabel.BackgroundTransparency = 0.5
+timerLabel.TextColor3 = Color3.fromRGB(255, 140, 0)
+timerLabel.TextSize = 22
+timerLabel.Font = Enum.Font.SourceSansBold
+timerLabel.Text = "AGUARDANDO..."
+timerLabel.Visible = false
+Instance.new("UICorner", timerLabel)
+
+-- [[ TELA DE AVISO (CORRIGIDA) ]] --
 task.spawn(function()
     local found = false
     while not found do
@@ -38,21 +53,29 @@ task.spawn(function()
 end)
 
 local avisoGui = Instance.new("ScreenGui", player.PlayerGui)
+avisoGui.Name = "AvisoProdigio"
+avisoGui.DisplayOrder = 999
+
 local frame = Instance.new("Frame", avisoGui)
 frame.Size = UDim2.new(0, 350, 0, 220); frame.Position = UDim2.new(0.5, -175, 0.5, -110)
 frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25); Instance.new("UICorner", frame)
 local stroke = Instance.new("UIStroke", frame); stroke.Color = Color3.fromRGB(255, 140, 0); stroke.Thickness = 2
+
 local titulo = Instance.new("TextLabel", frame)
-titulo.Size = UDim2.new(1, 0, 0, 50); titulo.Text = "⚠️ ATENÇÃO ⚠️"; titulo.TextColor3 = Color3.fromRGB(255, 140, 0)
-titulo.TextSize = 24; titulo.Font = Enum.Font.SourceSansBold; titulo.BackgroundTransparency = 1
+titulo.Size = UDim2.new(1, 0, 0, 50); titulo.Text = "⚠️ ATENÇÃO ⚠️"
+titulo.TextColor3 = Color3.fromRGB(255, 140, 0); titulo.TextSize = 26
+titulo.Font = Enum.Font.SourceSansBold; titulo.BackgroundTransparency = 1; titulo.ZIndex = 10
+
 local txt = Instance.new("TextLabel", frame)
 txt.Size = UDim2.new(1, -20, 0, 80); txt.Position = UDim2.new(0, 10, 0, 60)
 txt.Text = "AO APERTAR O BOTÃO DO X NO CANTO SUPERIOR DIREITO O MENU NÃO PODERÁ MAIS SER ABERTO"
-txt.TextColor3 = Color3.new(1, 1, 1); txt.TextSize = 18; txt.TextWrapped = true; txt.Font = Enum.Font.SourceSansBold; txt.BackgroundTransparency = 1
+txt.TextColor3 = Color3.fromRGB(255, 255, 255); txt.TextSize = 18; txt.TextWrapped = true
+txt.Font = Enum.Font.SourceSansBold; txt.BackgroundTransparency = 1; txt.ZIndex = 10
+
 local btnAbrir = Instance.new("TextButton", frame)
 btnAbrir.Size = UDim2.new(0, 200, 0, 40); btnAbrir.Position = UDim2.new(0.5, -100, 1, -50)
 btnAbrir.BackgroundColor3 = Color3.fromRGB(255, 140, 0); btnAbrir.Text = "ABRIR MENU"; btnAbrir.TextColor3 = Color3.new(1, 1, 1)
-btnAbrir.Font = Enum.Font.SourceSansBold; btnAbrir.TextSize = 18; Instance.new("UICorner", btnAbrir)
+btnAbrir.Font = Enum.Font.SourceSansBold; btnAbrir.TextSize = 18; btnAbrir.ZIndex = 10; Instance.new("UICorner", btnAbrir)
 
 btnAbrir.MouseButton1Click:Connect(function()
     avisoGui:Destroy()
@@ -61,26 +84,77 @@ btnAbrir.MouseButton1Click:Connect(function()
     end
 end)
 
--- [[ ABA VISUAL (ESP) ]] --
-local VisualTab = Window:NewTab("Visual (ESP)")
-local ESPSection = VisualTab:NewSection("Filtro por Proximidade")
+-- [[ ABA: AUTO FARM ]] --
+local FarmTab = Window:NewTab("Farm (Dinheiro)")
+local FarmSec = FarmTab:NewSection("Configuração do Farm")
 
-ESPSection:NewToggle("ESP Master", "Ativa o sistema", function(v) ESP_Settings.Enabled = v end)
-ESPSection:NewToggle("ESP Box", "Ativa Caixas", function(v) ESP_Settings.Boxes = v end)
-ESPSection:NewToggle("ESP Lines", "Ativa Linhas", function(v) ESP_Settings.Lines = v end)
-
-ESPSection:NewSlider("Espessura", "Tamanho das linhas", 5, 1, function(s) ESP_Settings.Thickness = s end)
-
-ESPSection:NewTextBox("Qtd de Pessoas (Proximidade)", "Ex: 1 para o mais próximo", function(txt)
-    local num = tonumber(txt)
-    if num then ESP_Settings.MaxPlayers = num end
+FarmSec:NewToggle("Ativar Auto Farm", "Liga/Desliga o Script", function(v)
+    Farm_Settings.AutoFarm = v
+    timerLabel.Visible = v
+    if v then
+        task.spawn(function()
+            while Farm_Settings.AutoFarm do
+                pcall(function()
+                    local char = player.Character
+                    if char and char:FindFirstChild("HumanoidRootPart") then
+                        timerLabel.Text = "COLETANDO..."
+                        char.HumanoidRootPart.CFrame = CFrame.new(Farm_Settings.ColetaPos)
+                        task.wait(1.5)
+                        for _, prompt in pairs(workspace:GetDescendants()) do
+                            if prompt:IsA("ProximityPrompt") and (char.HumanoidRootPart.Position - prompt.Parent.Position).Magnitude < 20 then
+                                fireproximityprompt(prompt)
+                                break
+                            end
+                        end
+                        for i = Farm_Settings.WaitTime, 1, -1 do
+                            if not Farm_Settings.AutoFarm then break end
+                            timerLabel.Text = "ENTREGA EM: " .. i .. "s"
+                            task.wait(1)
+                        end
+                        if Farm_Settings.AutoFarm then
+                            timerLabel.Text = "ENTREGANDO..."
+                            char.HumanoidRootPart.CFrame = CFrame.new(Farm_Settings.EntregaPos)
+                            task.wait(2.5)
+                        end
+                    end
+                end)
+                task.wait(0.1)
+            end
+        end)
+    end
 end)
 
-ESPSection:NewToggle("ESP Names", "Mostra Nomes", function(v) ESP_Settings.Names = v end)
-ESPSection:NewToggle("ESP Distance", "Mostra Distância", function(v) ESP_Settings.Distance = v end)
-ESPSection:NewColorPicker("Cor do ESP", "Mudar cor", Color3.fromRGB(255, 140, 0), function(color) ESP_Settings.Color = color end)
+FarmSec:NewSlider("Tempo de Espera (s)", "Delay entre caixas", 60, 5, function(s)
+    Farm_Settings.WaitTime = s
+end)
 
--- [[ LÓGICA DO ESP COM ORDENAÇÃO POR DISTÂNCIA ]] --
+-- [[ ABA: PATENTES ]] --
+local patentes = {"Recruta", "Soldado", "Cabo", "Terceiro Sargento", "Segundo Sargento", "Primeiro Sargento", "Subtenente", "Cadete", "Aspirante a Oficial", "Segundo Tenente", "Primeiro Tenente", "Capitão", "Major", "Tenente Coronel", "Coronel", "General de Brigada", "General de Divisão", "General de Exército"}
+local PatTab = Window:NewTab("Patentes")
+local PatSec = PatTab:NewSection("Hierarquia")
+local lAnt = PatSec:NewLabel("Anterior: ---"); local lPrx = PatSec:NewLabel("Próxima: Soldado")
+PatSec:NewDropdown("Patente", "Selecione", patentes, function(esc)
+    local idx = 0
+    for i, v in ipairs(patentes) do if v == esc then idx = i break end end
+    lAnt:UpdateLabel("Anterior: " .. (patentes[idx-1] or "---"))
+    lPrx:UpdateLabel("Próxima: " .. (patentes[idx+1] or "---"))
+end)
+
+-- [[ ABA: VISUAL (ESP) ]] --
+local VisualTab = Window:NewTab("Visual (ESP)")
+local ESPSection = VisualTab:NewSection("ESP Proximidade")
+ESPSection:NewToggle("ESP Master", "Ativa o sistema", function(v) ESP_Settings.Enabled = v end)
+ESPSection:NewToggle("ESP Box", "Caixas", function(v) ESP_Settings.Boxes = v end)
+ESPSection:NewToggle("ESP Lines", "Linhas", function(v) ESP_Settings.Lines = v end)
+ESPSection:NewTextBox("Qtd Pessoas", "Ex: 1", function(t)
+    local n = tonumber(t)
+    if n then ESP_Settings.MaxPlayers = n end
+end)
+ESPSection:NewToggle("ESP Names", "Nomes", function(v) ESP_Settings.Names = v end)
+ESPSection:NewToggle("ESP Distance", "Distância", function(v) ESP_Settings.Distance = v end)
+ESPSection:NewColorPicker("Cor ESP", "Cor", Color3.fromRGB(255, 140, 0), function(c) ESP_Settings.Color = c end)
+
+-- Lógica ESP
 local function GetSortedPlayers()
     local pList = {}
     for _, v in pairs(game.Players:GetPlayers()) do
@@ -93,68 +167,47 @@ local function GetSortedPlayers()
     return pList
 end
 
-local drawings = {} -- Guardar desenhos para limpar
-
+local drawings = {}
 game:GetService("RunService").RenderStepped:Connect(function()
-    -- Limpar desenhos antigos
     for _, d in pairs(drawings) do d.Visible = false end
-
     if not ESP_Settings.Enabled then return end
-
     local sorted = GetSortedPlayers()
     local limit = math.min(#sorted, ESP_Settings.MaxPlayers)
-
     for i = 1, limit do
-        local data = sorted[i]
-        local plr = data.Player
-        local char = plr.Character
-        local rootPart = char.HumanoidRootPart
-        local screenPos, onScreen = camera:WorldToViewportPoint(rootPart.Position)
-
+        local data = sorted[i]; local plr = data.Player; local root = plr.Character.HumanoidRootPart
+        local pos, onScreen = camera:WorldToViewportPoint(root.Position)
         if onScreen then
-            -- Identificador único para cada desenho (Box, Line, Text)
             local id = plr.Name
-            if not drawings[id.."Box"] then
-                drawings[id.."Box"] = Drawing.new("Square")
-                drawings[id.."Line"] = Drawing.new("Line")
-                drawings[id.."Text"] = Drawing.new("Text")
+            if not drawings[id.."B"] then
+                drawings[id.."B"] = Drawing.new("Square"); drawings[id.."L"] = Drawing.new("Line"); drawings[id.."T"] = Drawing.new("Text")
             end
-
-            local Box = drawings[id.."Box"]
-            local Line = drawings[id.."Line"]
-            local Text = drawings[id.."Text"]
-
+            local B, L, T = drawings[id.."B"], drawings[id.."L"], drawings[id.."T"]
             if ESP_Settings.Boxes then
-                local sizeX, sizeY = 1000 / screenPos.Z, 2000 / screenPos.Z
-                Box.Visible = true; Box.Color = ESP_Settings.Color; Box.Thickness = ESP_Settings.Thickness
-                Box.Size = Vector2.new(sizeX, sizeY); Box.Filled = false
-                Box.Position = Vector2.new(screenPos.X - sizeX / 2, screenPos.Y - sizeY / 2)
+                local sx, sy = 1000/pos.Z, 2000/pos.Z
+                B.Visible = true; B.Color = ESP_Settings.Color; B.Thickness = 1
+                B.Size = Vector2.new(sx, sy); B.Position = Vector2.new(pos.X-sx/2, pos.Y-sy/2); B.Filled = false
             end
-
             if ESP_Settings.Lines then
-                Line.Visible = true; Line.Color = ESP_Settings.Color; Line.Thickness = ESP_Settings.Thickness
-                Line.From = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y)
-                Line.To = Vector2.new(screenPos.X, screenPos.Y)
+                L.Visible = true; L.Color = ESP_Settings.Color; L.Thickness = 1
+                L.From = Vector2.new(camera.ViewportSize.X/2, camera.ViewportSize.Y); L.To = Vector2.new(pos.X, pos.Y)
             end
-
             if ESP_Settings.Names or ESP_Settings.Distance then
-                local content = ""
-                if ESP_Settings.Names then content = content .. plr.Name end
-                if ESP_Settings.Distance then content = content .. " [" .. math.floor(data.Distance) .. "m]" end
-                Text.Visible = true; Text.Text = content; Text.Color = ESP_Settings.Color
-                Text.Size = 18; Text.Center = true; Text.Outline = true
-                Text.Position = Vector2.new(screenPos.X, screenPos.Y - (2000 / screenPos.Z) / 2 - 20)
+                local c = ""
+                if ESP_Settings.Names then c = c .. plr.Name end
+                if ESP_Settings.Distance then c = c .. " [" .. math.floor(data.Distance) .. "m]" end
+                T.Visible = true; T.Text = c; T.Color = ESP_Settings.Color; T.Size = 18; T.Center = true; T.Outline = true
+                T.Position = Vector2.new(pos.X, pos.Y - (2000/pos.Z)/2 - 20)
             end
         end
     end
 end)
 
--- [[ ABA AUXILIARES - PARKOURS ]] --
+-- [[ ABA: AUXILIARES (PARKOURS) ]] --
 local p1Parts, p2Parts, p3Parts, p4Parts = {}, {}, {}, {}
 local Tab = Window:NewTab("Auxiliares")
 local Sec = Tab:NewSection("Pistas de Treino")
 
-Sec:NewToggle("Parkour 1", "Ativa P1", function(s)
+Sec:NewToggle("Parkour 1", "P1 + Pontes", function(s)
     if s then
         local c = {Vector3.new(161,13,-860), Vector3.new(169,13,-853), Vector3.new(181,13,-859), Vector3.new(191,13,-854)}
         for _,v in ipairs(c) do
@@ -192,20 +245,15 @@ Sec:NewToggle("Parkour 4", "Ativa P4", function(s)
     else for _,v in pairs(p4Parts) do v:Destroy() end p4Parts = {} end
 end)
 
--- [[ PATENTES E CRÉDITOS ]] --
-local patentes = {"Recruta", "Soldado", "Cabo", "Terceiro Sargento", "Segundo Sargento", "Primeiro Sargento", "Subtenente", "Cadete", "Aspirante a Oficial", "Segundo Tenente", "Primeiro Tenente", "Capitão", "Major", "Tenente Coronel", "Coronel", "General de Brigada", "General de Divisão", "General de Exército"}
-local PatTab = Window:NewTab("Patentes")
-local PatSec = PatTab:NewSection("Consultar Hierarquia")
-local lAnt = PatSec:NewLabel("Anterior: ---"); local lPrx = PatSec:NewLabel("Próxima: Soldado")
-PatSec:NewDropdown("Selecionar Patente", "Veja a ordem", patentes, function(esc)
-    local idx = 0
-    for i, v in ipairs(patentes) do if v == esc then idx = i break end end
-    lAnt:UpdateLabel("Anterior: " .. (patentes[idx-1] or "---"))
-    lPrx:UpdateLabel("Próxima: " .. (patentes[idx+1] or "---"))
-end)
-local CreditTab = Window:NewTab("Créditos"); local CreditSec = CreditTab:NewSection("Equipe")
-CreditSec:NewLabel("TIKTOK: @prdgzx071"); CreditSec:NewLabel("DESENVOLVEDOR: prodigiozx ttk")
-local Config = Window:NewTab("Config"); Config:NewSection("Controle"):NewKeybind("Atalho Teclado", "Mudar tecla", Enum.KeyCode.RightControl, function() Library:ToggleUI() end)
-local sgZX = Instance.new("ScreenGui", player.PlayerGui); local btnZX = Instance.new("TextButton", sgZX)
+-- [[ CRÉDITOS E CONFIG ]] --
+local CreditTab = Window:NewTab("Créditos")
+CreditTab:NewSection("TIKTOK: @prdgzx071")
+CreditTab:NewSection("DEV: prodigiozx ttk")
+
+local Config = Window:NewTab("Config")
+Config:NewSection("Atalho"):NewKeybind("Abrir Menu", "Ctrl Direito", Enum.KeyCode.RightControl, function() Library:ToggleUI() end)
+
+local sgZX = Instance.new("ScreenGui", player.PlayerGui)
+local btnZX = Instance.new("TextButton", sgZX)
 btnZX.Size = UDim2.new(0,50,0,50); btnZX.Position = UDim2.new(0,20,0.5,-25); btnZX.BackgroundColor3 = Color3.fromRGB(255,140,0); btnZX.Text = "ZX"; btnZX.TextScaled = true; btnZX.TextColor3 = Color3.new(1,1,1); Instance.new("UICorner", btnZX).CornerRadius = UDim.new(1,0)
 btnZX.MouseButton1Click:Connect(function() Library:ToggleUI() end)
