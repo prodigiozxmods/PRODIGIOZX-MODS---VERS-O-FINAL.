@@ -1,4 +1,4 @@
--- [[ PRODIGIOZX MODS - VERSÃO AVISO CORRIGIDO ]] --
+-- [[ PRODIGIOZX MODS - VERSÃO COM TEXTBOX NO FARM ]] --
 local player = game:GetService("Players").LocalPlayer
 local camera = workspace.CurrentCamera
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"))()
@@ -106,6 +106,7 @@ FarmSec:NewToggle("Ativar Auto Farm", "Liga/Desliga o Script", function(v)
                                 break
                             end
                         end
+                        -- Início do tempo definido na TextBox
                         for i = Farm_Settings.WaitTime, 1, -1 do
                             if not Farm_Settings.AutoFarm then break end
                             timerLabel.Text = "ENTREGA EM: " .. i .. "s"
@@ -124,8 +125,12 @@ FarmSec:NewToggle("Ativar Auto Farm", "Liga/Desliga o Script", function(v)
     end
 end)
 
-FarmSec:NewSlider("Tempo de Espera (s)", "Delay entre caixas", 60, 5, function(s)
-    Farm_Settings.WaitTime = s
+-- MUDANÇA: Substituído Slider por TextBox
+FarmSec:NewTextBox("Segundos para Entregar", "Digite o tempo (Ex: 30)", function(t)
+    local num = tonumber(t)
+    if num then
+        Farm_Settings.WaitTime = num
+    end
 end)
 
 -- [[ ABA: PATENTES ]] --
