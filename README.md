@@ -1,30 +1,526 @@
--- [[ PRODIGIOZX MODS - COMPLETO (ESP COM LIMITE DE JOGADORES) ]] --
-local OrionLib
+-- [[ PRODIGIOZX MODS - PARKOUR MACRO (GHOST PULSANTE + ANIMAÇÕES NATURAIS) ]] --
 
--- Tentativa de carregamento seguro da interface Orion
-local urls = {
-    "https://raw.githubusercontent.com/shlexware/Orion/main/source",
-    "https://raw.githubusercontent.com/jensonhirst/Orion/main/source",
-    "https://pastebin.com/raw/1gtC8x7Y"
-}
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local HttpService = game:GetService("HttpService")
 
-for _, url in ipairs(urls) do
-    local success, result = pcall(function()
-        return loadstring(game:HttpGet(url))()
-    end)
-    if success and result then
-        OrionLib = result
-        break
-    end
-end
-
-if not OrionLib then
-    warn("[PRODIGIOZX Error]: Nao foi possivel carregar a interface Orion. Verifique sua conexao ou executor.")
-    return
-end
+local Window = Rayfield:CreateWindow({
+   Name = "⚡ MODS PRODIGIOZX ⚡",
+   LoadingTitle = "ProdigioZX Mods",
+   LoadingSubtitle = "by prodigiozx ttk",
+   ConfigurationSaving = { Enabled = false },
+   Discord = { Enabled = false },
+   KeySystem = false
+})
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
+local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
+local player = Players.LocalPlayer
+
+local MacroData = {
+    Recording = false,
+    Playing = false,
+    CurrentPath = {},
+    SaveFileName = ""
+}
+
+local SavedRoutes = {}
+local ActiveRoutes = {}
+local GhostVisuals = {}
+local TrajectoryLines = {}
+
+-- [[ SISTEMA DE SALVAMENTO AUTOMÁTICO (JSON) ]] --
+local SaveFileNameFolder = "ProdigioZX_Parkour"
+local SaveFileNameFile = "SavedRoutes.json"
+
+local function SaveRoutesToFile()
+    local success, encoded = pcall(function()
+        return HttpService:JSONEncode(SavedRoutes)
+    end)
+    if success and writefile then
+        if not isfolder(SaveFileNameFolder) then
+            makefolder(SaveFileNameFolder)
+        end
+        writefile(SaveFileNameFolder .. "/" .. SaveFileNameFile, encoded)
+    end
+end
+
+local function LoadRoutesFromFile()
+    if readfile and isfile and isfile(SaveFileNameFolder .. "/" .. SaveFileNameFile) then
+        local success, decoded = pcall(function()
+            return HttpService:JSONDecode(readfile(SaveFileNameFolder .. "/" .. SaveFileNameFile))
+        end)
+        if success and type(decoded) == "table" then
+            SavedRoutes = decoded
+        end
+    end
+end
+
+LoadRoutesFromFile()
+
+local function GetChar()
+    local char = player.Character
+    if char then
+        local root = char:FindFirstChild("HumanoidRootPart")
+        local hum = char:FindFirstChild("Humanoid")
+        return char, root, hum
+    end
+    return nil, nil, nil
+end
+
+-- [[ ABA 1: GRAVADOR & REPLAY PRO ]] --
+local MacroTab = Window:CreateTab("🎬 Gravador", 4483362458)
+MacroTab:CreateSection("Controle de Gravação")
+
+local recordConnection = nil
+local recordStartTime = 0
+
+local function StartRecording()
+    MacroData.CurrentPath = {}
+    recordStartTime = os.clock()
+    
+    recordConnection = RunService.Heartbeat:Connect(function()
+        if not MacroData.Recording then return end
+        local _, root, hum = GetChar()
+        if root and hum then
+            local elapsedTime = os.clock() - recordStartTime
+            local isJumping = hum:GetState() == Enum.HumanoidStateType.Jumping or hum:GetState() == Enum.HumanoidStateType.Freefall
+            table.insert(MacroData.CurrentPath, {
+                Time = elapsedTime,
+                CF = {root.CFrame:GetComponents()},
+                Jumping = isJumping
+            })
+        end
+    end)
+end
+
+local function StopRecording()
+    if recordConnection then
+        recordConnection:Disconnect()
+        recordConnection = nil
+    end
+end
+
+MacroTab:CreateToggle({
+   Name = "🔴 Iniciar / Parar Gravação",
+   CurrentValue = false,
+   Callback = function(v)
+      MacroData.Recording = v
+      if v then 
+          StartRecording() 
+          Rayfield:Notify({ Title = "Gravando!", Content = "Faça seu parkour normalmente.", Duration = 2.5, Image = 4483362458 })
+      else 
+          StopRecording() 
+          Rayfield:Notify({ Title = "Gravação Concluída", Content = "Digite o nome e salve a rota!", Duration = 2.5, Image = 4483362458 })
+      end
+   end,
+})
+
+MacroTab:CreateInput({
+   Name = "Nome do Replay para Salvar",
+   PlaceholderText = "Ex: Parkour1",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(txt) MacroData.SaveFileName = txt end,
+})
+
+MacroTab:CreateButton({
+   Name = "💾 Salvar Gravação Atual",
+   Callback = function()
+      if #MacroData.CurrentPath == 0 or MacroData.SaveFileName == "" then 
+          Rayfield:Notify({ Title = "Aviso", Content = "Grave um trajeto e defina um nome antes de salvar!", Duration = 3, Image = 4483362458 })
+          return 
+      end
+      
+      SavedRoutes[MacroData.SaveFileName] = MacroData.CurrentPath
+      SaveRoutesToFile()
+      Rayfield:Notify({ Title = "Sucesso!", Content = "Replay '" .. MacroData.SaveFileName .. "' salvo!", Duration = 3, Image = 4483362458 })
+   end,
+})
+
+MacroTab:CreateSection("Gerenciar Replays")
+
+local function DrawTrajectoryESP(routeName, pathData)
+    if not pathData or #pathData < 2 then return end
+    
+    local folder = Instance.new("Folder")
+    folder.Name = "ESP_Trajectory_" .. routeName
+    
+    for i = 1, #pathData - 1, math.max(1, math.floor(#pathData / 150)) do
+        local nextIdx = math.min(i + math.max(1, math.floor(#pathData / 150)), #pathData)
+        local cf1 = CFrame.new(unpack(pathData[i].CF))
+        local cf2 = CFrame.new(unpack(pathData[nextIdx].CF))
+        
+        local pos1 = cf1.Position + Vector3.new(0, -2, 0)
+        local pos2 = cf2.Position + Vector3.new(0, -2, 0)
+        local distance = (pos1 - pos2).Magnitude
+        
+        if distance > 0.1 and distance < 50 then
+            local p = Instance.new("Part")
+            p.Size = Vector3.new(0.1, 0.1, distance)
+            p.CFrame = CFrame.new(pos1:Lerp(pos2, 0.5), pos2)
+            p.Anchored = true
+            p.CanCollide = false
+            p.Material = Enum.Material.Neon
+            p.Color = Color3.fromRGB(0, 255, 200)
+            p.Transparency = 0.2
+            p.Parent = folder
+        end
+    end
+    
+    folder.Parent = workspace
+    TrajectoryLines[routeName] = folder
+end
+
+local function ClearTrajectoryESP(routeName)
+    if TrajectoryLines[routeName] then
+        TrajectoryLines[routeName]:Destroy()
+        TrajectoryLines[routeName] = nil
+    end
+end
+
+function ClearGhostVisual(routeName)
+    if GhostVisuals[routeName] then
+        for _, obj in ipairs(GhostVisuals[routeName]) do
+            if obj and obj.Parent then obj:Destroy() end
+        end
+        GhostVisuals[routeName] = nil
+    end
+    ClearTrajectoryESP(routeName)
+end
+
+function DrawGhostStartModel(routeName, pathData)
+    ClearGhostVisual(routeName)
+    if not pathData or #pathData == 0 then return end
+
+    local char = player.Character
+    if not char then return end
+
+    GhostVisuals[routeName] = {}
+    local startCF = CFrame.new(unpack(pathData[1].CF))
+
+    char.Archivable = true
+    local ghostChar = char:Clone()
+    char.Archivable = false
+
+    ghostChar.Name = "PRDG_Ghost_" .. routeName
+    local partsToPulse = {}
+
+    for _, part in ipairs(ghostChar:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = false
+            part.Anchored = true
+            part.Material = Enum.Material.ForceField
+            part.Color = Color3.fromRGB(0, 255, 200)
+            part.Transparency = 0.4
+            table.insert(partsToPulse, part)
+        elseif part:IsA("Script") or part:IsA("LocalScript") or part:IsA("UIListLayout") then
+            part:Destroy()
+        end
+    end
+
+    local ghostRoot = ghostChar:FindFirstChild("HumanoidRootPart")
+    if ghostRoot then
+        ghostRoot.CFrame = startCF
+        
+        -- Adiciona o nome em cima do começo do percurso (BillboardGui)
+        local bb = Instance.new("BillboardGui")
+        bb.Name = "RouteNameTag"
+        bb.Adornee = ghostRoot
+        bb.Size = UDim2.new(0, 200, 0, 50)
+        bb.StudsOffset = Vector3.new(0, 3.5, 0)
+        bb.AlwaysOnTop = true
+
+        local txt = Instance.new("TextLabel")
+        txt.Size = UDim2.new(1, 0, 1, 0)
+        txt.BackgroundTransparency = 1
+        txt.TextColor3 = Color3.fromRGB(0, 255, 200)
+        txt.TextStrokeTransparency = 0
+        txt.TextSize = 16
+        txt.Font = Enum.Font.SourceSansBold
+        txt.Text = routeName
+        txt.Parent = bb
+        bb.Parent = ghostRoot
+    end
+
+    ghostChar.Parent = workspace
+    table.insert(GhostVisuals[routeName], ghostChar)
+
+    task.spawn(function()
+        while ghostChar and ghostChar.Parent do
+            for _, p in ipairs(partsToPulse) do
+                if p and p.Parent then
+                    TweenService:Create(p, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Transparency = 0.75}):Play()
+                end
+            end
+            task.wait(1)
+            for _, p in ipairs(partsToPulse) do
+                if p and p.Parent then
+                    TweenService:Create(p, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Transparency = 0.35}):Play()
+                end
+            end
+            task.wait(1)
+        end
+    end)
+    DrawTrajectoryESP(routeName, pathData)
+end
+
+local ReplayToggles = {}
+local ReplayDeleteButtons = {}
+
+local function RefreshReplayMenu()
+    for name, element in pairs(ReplayToggles) do if element then pcall(function() element:Destroy() end) end end
+    for name, element in pairs(ReplayDeleteButtons) do if element then pcall(function() element:Destroy() end) end end
+    table.clear(ReplayToggles)
+    table.clear(ReplayDeleteButtons)
+
+    for name, pathData in pairs(SavedRoutes) do
+        ReplayToggles[name] = MacroTab:CreateToggle({
+           Name = "📜 Ativar Rota: " .. name,
+           CurrentValue = false,
+           Callback = function(state)
+              if state then
+                  ActiveRoutes[name] = { Path = pathData }
+                  DrawGhostStartModel(name, pathData)
+              else
+                  ActiveRoutes[name] = nil
+                  ClearGhostVisual(name)
+              end
+           end,
+        })
+        ReplayDeleteButtons[name] = MacroTab:CreateButton({
+           Name = "🗑️ Excluir Rota: " .. name,
+           Callback = function()
+              ActiveRoutes[name] = nil
+              ClearGhostVisual(name)
+              SavedRoutes[name] = nil
+              SaveRoutesToFile()
+              RefreshReplayMenu()
+           end,
+        })
+    end
+end
+
+MacroTab:CreateButton({ Name = "🔄 Atualizar Lista", Callback = RefreshReplayMenu })
+
+local function PlayRecordedRouteSmooth(pathData)
+    local char, root, hum = GetChar()
+    if not hum or not root or #pathData < 2 then return end
+
+    MacroData.Playing = true
+    local playStartTime = os.clock()
+    local totalDuration = pathData[#pathData].Time
+    local currentIndex = 1
+
+    local renderConn
+    renderConn = RunService.PreSimulation:Connect(function()
+        if not MacroData.Playing then
+            if renderConn then renderConn:Disconnect() end
+            return
+        end
+
+        local currentTime = os.clock() - playStartTime
+
+        if currentTime >= totalDuration then
+            if renderConn then renderConn:Disconnect() end
+            MacroData.Playing = false
+            return
+        end
+
+        while currentIndex < #pathData and pathData[currentIndex + 1].Time < currentTime do
+            currentIndex = currentIndex + 1
+        end
+
+        local p1 = pathData[currentIndex]
+        local p2 = pathData[math.min(currentIndex + 1, #pathData)]
+        local cf1 = CFrame.new(unpack(p1.CF))
+        local cf2 = CFrame.new(unpack(p2.CF))
+        local timeDiff = math.max(p2.Time - p1.Time, 0.001)
+        local alpha = math.clamp((currentTime - p1.Time) / timeDiff, 0, 1)
+        local targetCF = cf1:Lerp(cf2, alpha)
+
+        local _, curRoot, curHum = GetChar()
+        if curRoot and curHum then
+            curRoot.CFrame = targetCF
+            local moveDir = (cf2.Position - cf1.Position)
+            if moveDir.Magnitude > 0.05 then
+                curHum:Move(moveDir.Unit, false)
+                curHum:ChangeState(Enum.HumanoidStateType.Running)
+            end
+            if p1.Jumping then
+                curHum.Jump = true
+                curHum:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+        end
+    end)
+end
+
+-- Detecção de Reinício Automático com controle correto para repetir várias vezes
+local hasLeftStartArea = {}
+
+RunService.Heartbeat:Connect(function()
+    if MacroData.Recording then return end
+    
+    local _, myRoot, _ = GetChar()
+    local camera = workspace.CurrentCamera
+    if myRoot and camera then
+        for name, routeData in pairs(ActiveRoutes) do
+            local startCF = CFrame.new(unpack(routeData.Path[1].CF))
+            local dist = (myRoot.Position - startCF.Position).Magnitude
+            
+            if dist > 6.0 then
+                hasLeftStartArea[name] = true
+            end
+            
+            if dist <= 3.5 then
+                local directionDot = camera.CFrame.LookVector:Dot(startCF.LookVector)
+                if directionDot >= 0.82 and not MacroData.Playing and (hasLeftStartArea[name] == nil or hasLeftStartArea[name] == true) then
+                    hasLeftStartArea[name] = false
+                    PlayRecordedRouteSmooth(routeData.Path)
+                    task.wait(1)
+                    break
+                end
+            end
+        end
+    end
+end)
+
+-- [[ ABA 2: ESP VISUAL & PATENTES ]] --
+local EspTab = Window:CreateTab("👁️ ESP", 4483362458)
+EspTab:CreateSection("Configurações do ESP")
+
+local ESP = { Enabled = false, Boxes = false, Names = false, Distance = false, Ranks = false, MaxDistance = 1000, Color = Color3.fromRGB(255, 140, 0) }
+
+local function CleanESP(char)
+    if not char then return end
+    local hl = char:FindFirstChild("PRDG_Highlight")
+    local bb = char:FindFirstChild("PRDG_Billboard")
+    if hl then hl:Destroy() end
+    if bb then bb:Destroy() end
+end
+
+local function ApplyESP(targetPlayer)
+    if targetPlayer == player then return end
+    local function SetupCharacter(char)
+        if not char then return end
+        CleanESP(char)
+        local root = char:WaitForChild("HumanoidRootPart", 5)
+        if not root then return end
+
+        local hl = Instance.new("Highlight")
+        hl.Name = "PRDG_Highlight"
+        hl.FillColor = ESP.Color
+        hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+        hl.FillTransparency = 0.5
+        hl.Parent = char
+
+        local bb = Instance.new("BillboardGui")
+        bb.Name = "PRDG_Billboard"
+        bb.Adornee = root
+        bb.Size = UDim2.new(0, 200, 0, 50)
+        bb.StudsOffset = Vector3.new(0, 3.5, 0)
+        bb.AlwaysOnTop = true
+
+        local txt = Instance.new("TextLabel")
+        txt.Name = "InfoText"
+        txt.Size = UDim2.new(1, 0, 1, 0)
+        txt.BackgroundTransparency = 1
+        txt.TextColor3 = ESP.Color
+        txt.TextSize = 13
+        txt.Font = Enum.Font.SourceSansBold
+        txt.Parent = bb
+        bb.Parent = char
+    end
+    if targetPlayer.Character then SetupCharacter(targetPlayer.Character) end
+    targetPlayer.CharacterAdded:Connect(SetupCharacter)
+end
+
+for _, p in pairs(Players:GetPlayers()) do ApplyESP(p) end
+Players.PlayerAdded:Connect(ApplyESP)
+
+RunService.RenderStepped:Connect(function()
+    local myChar = player.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= player and p.Character then
+            local char = p.Character
+            local root = char:FindFirstChild("HumanoidRootPart")
+            local hl = char:FindFirstChild("PRDG_Highlight")
+            local bb = char:FindFirstChild("PRDG_Billboard")
+
+            if root and myRoot then
+                local dist = (myRoot.Position - root.Position).Magnitude
+                local shouldShow = ESP.Enabled and (dist <= ESP.MaxDistance)
+
+                if hl then hl.Enabled = shouldShow and ESP.Boxes end
+                if bb then
+                    local txt = bb:FindFirstChild("InfoText")
+                    if txt then
+                        local str = ""
+                        if ESP.Names then str = str .. p.Name end
+                        if ESP.Ranks then
+                            local leaderstats = p:FindFirstChild("leaderstats")
+                            local rankVal = leaderstats and (leaderstats:FindFirstChild("Patente") or leaderstats:FindFirstChild("Rank") or leaderstats:FindFirstChild("Level"))
+                            local rankText = rankVal and tostring(rankVal.Value) or "Sem Patente"
+                            str = str .. " [" .. rankText .. "]"
+                        end
+                        if ESP.Distance then str = str .. " (" .. math.floor(dist).. "m)" end
+                        txt.Text = str
+                    end
+                    bb.Enabled = shouldShow and (ESP.Names or ESP.Distance or ESP.Ranks)
+                end
+            end
+        end
+    end
+end)
+
+EspTab:CreateToggle({ Name = "Ativar ESP Geral", CurrentValue = false, Callback = function(v) ESP.Enabled = v end })
+EspTab:CreateToggle({ Name = "Caixas / Highlight", CurrentValue = false, Callback = function(v) ESP.Boxes = v end })
+EspTab:CreateToggle({ Name = "Mostrar Nomes", CurrentValue = false, Callback = function(v) ESP.Names = v end })
+EspTab:CreateToggle({ Name = "Mostrar Distância", CurrentValue = false, Callback = function(v) ESP.Distance = v end })
+EspTab:CreateToggle({ Name = "Ver Patentes / Ranks", CurrentValue = false, Callback = function(v) ESP.Ranks = v end })
+
+-- [[ ABA 3: RÁDIO ]] --
+local MusicTab = Window:CreateTab("🎵 Rádio", 4483362458)
+MusicTab:CreateSection("Tocador de Música")
+
+local Music_System = { SoundId = "9043887091", Volume = 1, Instance = nil }
+
+MusicTab:CreateInput({
+   Name = "ID do Áudio",
+   PlaceholderText = "Digite o ID",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(texto) if texto ~= "" then Music_System.SoundId = texto end end,
+})
+
+MusicTab:CreateButton({
+   Name = "▶ Tocar Música",
+   Callback = function()
+      if Music_System.Instance then Music_System.Instance:Destroy() end
+      local cleanID = string.match(tostring(Music_System.SoundId), "%d+")
+      if cleanID then
+          local sound = Instance.new("Sound")
+          sound.SoundId = "rbxassetid://" .. cleanID
+          sound.Volume = Music_System.Volume
+          sound.Looped = true
+          sound.Parent = SoundService
+          sound:Play()
+          Music_System.Instance = sound
+      end
+   end,
+})
+
+MusicTab:CreateButton({
+   Name = "⏹ Parar Música",
+   Callback = function() if Music_System.Instance then Music_System.Instance:Destroy() end end,
+})
+
+-- [[ ABA 4: CRÉDITOS ]] --
+local CreditTab = Window:CreateTab("ℹ️ Créditos", 4483362458)
+CreditTab:CreateSection("Desenvolvedor")
+CreditTab:CreateLabel("TikTok: @prdgzx071")
+CreditTab:CreateLabel("Desenvolvedor: prodigiozx ttk")
 local SoundService = game:GetService("SoundService")
 local player = Players.LocalPlayer
 
